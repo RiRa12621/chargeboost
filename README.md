@@ -116,7 +116,7 @@ The test suite has three layers:
 
 | Layer | What it verifies | Command |
 | --- | --- | --- |
-| Unit tests | Start/cancel/completion, ownership, errors, multiple batteries, hotplug races, and cleanup | `node --test tests/extension.test.mjs` |
+| Unit tests | Start/cancel/completion, ownership, errors, multiple batteries, hotplug races, cleanup, and test-driver startup | `node --test tests/*.test.mjs` |
 | Package tests | ZIP contents, checksums, release metadata, invalid versions, and unchanged source metadata | `python3 tests/test_package.py` |
 | GNOME integration | Real GJS, Quick Settings actors, Gio calls/signals, and extension enable/disable | `./tests/run-shell-tests.sh` |
 
@@ -131,12 +131,15 @@ and system buses, with temporary settings and an in-memory UPower fixture. It
 opens Quick Settings and exercises the actual packaged code in CI. Tests never
 contact your real UPower service. Readiness checks have deadlines, all test
 processes are cleaned up, and diagnostics go to `test-results/shell/`.
+The test profile suppresses GNOME's first-login welcome dialog, and the driver
+waits for Shell startup and the overview to finish before opening Quick Settings.
+Failures include the timed-out condition or assertion message alongside its stack.
 
 Run all checks locally:
 
 ```sh
 node --check extension.js
-node --test tests/extension.test.mjs
+node --test tests/*.test.mjs
 python3 tests/test_package.py
 ./tests/run-shell-tests.sh
 ```

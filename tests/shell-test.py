@@ -73,6 +73,10 @@ def run():
                                 "['chargeboost@rackow.io', 'chargeboost-tests@rackow.io']"], env=env, check=True)
                 subprocess.run(["gsettings", "set", "org.gnome.shell", "disable-user-extensions", "false"],
                                env=env, check=True)
+                # A fresh profile otherwise opens the welcome dialog after
+                # startup, which closes Quick Settings as a system modal.
+                subprocess.run(["gsettings", "set", "org.gnome.shell", "welcome-dialog-last-shown-version", "50"],
+                               env=env, check=True)
                 shell = subprocess.Popen(["gnome-shell", "--headless", "--wayland", "--no-x11",
                                           "--virtual-monitor", "1280x720"], env=env,
                                          stdout=shell_log, stderr=subprocess.STDOUT)

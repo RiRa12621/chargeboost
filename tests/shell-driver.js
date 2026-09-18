@@ -14,9 +14,9 @@ function assert(condition, message) {
 }
 
 // Bounded readiness checks belong to the test runner, never the extension.
-function until(predicate, description) {
+function until(predicate, description, timeoutMs = 5000) {
     return new Promise((resolve, reject) => {
-        const deadline = GLib.get_monotonic_time() + 5_000_000;
+        const deadline = GLib.get_monotonic_time() + timeoutMs * 1000;
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 25, () => {
             try {
                 if (predicate()) {
@@ -47,7 +47,7 @@ export default class ShellTestDriver extends Extension {
     enable() {
         this._run().then(
             tests => this._finish({ok: true, tests}),
-            error => this._finish({ok: false, error: error.stack ?? error.message}));
+            error => this._finish({ok: false, error: `${error.message}\n${error.stack ?? ''}`}));
     }
 
     disable() {}
@@ -58,6 +58,12 @@ export default class ShellTestDriver extends Extension {
 
     async _run() {
         const tests = [];
+        // Extensions load before Shell's startup animation and first-login UI.
+        // Opening a menu then can race layout allocation or a modal dialog.
+        await until(() => !Main.layoutManager._startingUp, 'GNOME Shell startup completes', 15000);
+        Main.overview.hide();
+        await until(() => !Main.overview.visible, 'startup overview closes');
+
         const extension = () => Main.extensionManager.lookup(UUID)?.stateObj;
         await until(() => extension()?._indicator?._devices.size === 2 &&
             extension()._indicator._toggle.visible, 'extension discovers the mock battery');

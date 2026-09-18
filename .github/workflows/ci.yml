@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           node --check extension.js
-          node --check tests/extension.test.mjs
+          for test in tests/*.test.mjs; do node --check "$test"; done
           node --check tests/shell-driver.js
           for script in scripts/*.sh tests/*.sh; do bash -n "$script"; done
           python3 -m json.tool metadata.json > /dev/null
@@ -44,7 +44,7 @@ jobs:
               ast.parse(source.read_text(), filename=str(source))
           PY
       - name: Run lifecycle unit tests
-        run: node --test tests/extension.test.mjs
+        run: node --test tests/*.test.mjs
       - name: Validate GitHub Actions workflows
         shell: bash
         run: |
