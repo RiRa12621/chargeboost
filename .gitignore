@@ -1,0 +1,7 @@
+.idea/
+dist/
+test-results/
+test-package/
+__pycache__/
+*.pyc
+*.shell-extension.zip

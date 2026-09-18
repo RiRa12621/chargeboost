@@ -1,0 +1,8 @@
+{
+  "name": "Charge Boost",
+  "description": "Temporarily bypass UPower's existing battery charge thresholds to charge to full once. Restores them when full, unplugged, cancelled, or disabled.",
+  "uuid": "chargeboost@rackow.io",
+  "shell-version": [
+    "50"
+  ]
+}

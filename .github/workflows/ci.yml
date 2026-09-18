@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      package-version:
+        description: Optional stable release tag to include as metadata version-name
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests and syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Check JavaScript, shell scripts, and metadata
+        shell: bash
+        run: |
+          node --check extension.js
+          node --check tests/extension.test.mjs
+          node --check tests/shell-driver.js
+          for script in scripts/*.sh tests/*.sh; do bash -n "$script"; done
+          python3 -m json.tool metadata.json > /dev/null
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          for source in Path('tests').glob('*.py'):
+              ast.parse(source.read_text(), filename=str(source))
+          PY
+      - name: Run lifecycle unit tests
+        run: node --test tests/extension.test.mjs
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck='' -pyflakes='' .github/workflows/*.yml
+
+  shell:
+    name: GNOME Shell 50 and release package (Fedora 44)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: registry.fedoraproject.org/fedora:44
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install GNOME test environment
+        run: >-
+          dnf install -y
+          git gnome-shell gjs python3-gobject dbus-daemon
+          mesa-dri-drivers upower-libs shadow-utils util-linux
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build and inspect installable archive
+        env:
+          PACKAGE_VERSION: ${{ inputs.package-version || '' }}
+        run: |
+          python3 tests/test_package.py
+          scripts/package.sh dist "$PACKAGE_VERSION"
+      - name: Run isolated GNOME Shell integration tests
+        run: |
+          python3 -m zipfile --extract dist/chargeboost@rackow.io.shell-extension.zip test-package
+          useradd --create-home shelltester
+          mkdir -p test-results/shell
+          chown -R shelltester:shelltester "$GITHUB_WORKSPACE"
+          runuser --user shelltester -- env CHARGEBOOST_EXTENSION_DIR="$GITHUB_WORKSPACE/test-package" \
+            tests/run-shell-tests.sh "$GITHUB_WORKSPACE/test-results/shell"
+      - name: Preserve Shell diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gnome-shell-test-logs
+          path: test-results/shell/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload tested extension
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: chargeboost-extension
+          path: |
+            dist/chargeboost@rackow.io.shell-extension.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
