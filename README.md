@@ -1,6 +1,6 @@
 # Charge Boost
 
-[![CI](https://github.com/RiRa12621/chargeboost/actions/workflows/ci.yml/badge.svg)](https://github.com/RiRa12621/chargeboost/actions/workflows/ci.yml)****
+[![CI](https://github.com/RiRa12621/chargeboost/actions/workflows/ci.yml/badge.svg)](https://github.com/RiRa12621/chargeboost/actions/workflows/ci.yml)
 
 **Charge to 100% once, then return to your existing battery preservation settings.**
 
