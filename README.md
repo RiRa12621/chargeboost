@@ -118,11 +118,12 @@ The test suite has three layers:
 
 | Layer | What it verifies | Command |
 | --- | --- | --- |
-| Unit tests | Start/cancel/completion, ownership, errors, multiple batteries, hotplug races, cleanup, and test-driver startup | `node --test tests/*.test.mjs` |
-| Package tests | ZIP contents, checksums, release metadata, invalid versions, and unchanged source metadata | `python3 tests/test_package.py` |
+| Unit tests | Battery lifecycle, test-driver startup, and Conventional Commits version selection | `npm test` |
+| Package tests | ZIP contents, checksums, release preparation, invalid versions, and unchanged source metadata | `python3 -m unittest discover -s tests -p 'test_*.py'` |
 | GNOME integration | Real GJS, Quick Settings actors, Gio calls/signals, and extension enable/disable | `./tests/run-shell-tests.sh` |
 
-Unit tests require Node.js 24. Package tests require the build tools listed above.
+Unit tests require Node.js 24.10 or later; `npm ci --ignore-scripts` installs the
+locked development and release tooling. Package tests require the build tools listed above.
 Integration tests require GNOME Shell 50, GJS, Python 3 with PyGObject, D-Bus,
 UPower's GI library, and Mesa software rendering. On Fedora the relevant package
 names are `gnome-shell`, `gjs`, `python3-gobject`, `dbus-daemon`, `upower-libs`,
@@ -141,8 +142,9 @@ Run all checks locally:
 
 ```sh
 node --check extension.js
-node --test tests/*.test.mjs
-python3 tests/test_package.py
+npm ci --ignore-scripts
+npm test
+python3 -m unittest discover -s tests -p 'test_*.py'
 ./tests/run-shell-tests.sh
 ```
 
@@ -188,24 +190,40 @@ the extracted ZIP under GNOME Shell 50 in Fedora 44. It uploads the tested
 archive, checksums, and Shell logs as workflow artifacts. Test jobs have read-only
 repository permissions and actions are pinned to commit hashes.
 
-To publish a stable release after the repository is on GitHub and the desired
-commit is pushed:
+**Push or merge Conventional Commits to `master`; releases are automatic after
+CI passes.** [semantic-release](https://semantic-release.org/) examines commits
+since the previous release and selects the next `x.y.z` version:
 
-```sh
-git tag v1.0.0
-git push origin v1.0.0
-```
+| Commit | Release |
+| --- | --- |
+| `fix: restore thresholds after unplugging` | Patch, e.g. `1.2.3` → `1.2.4` |
+| `perf: reduce redundant D-Bus work` | Patch |
+| `feat: support another battery device` | Minor, e.g. `1.2.3` → `1.3.0` |
+| A `!` after the type/scope, or a `BREAKING CHANGE:` footer | Major, e.g. `1.2.3` → `2.0.0` |
+| `docs:`, `chore:`, `ci:`, `test:`, or other non-release changes | No release unless marked breaking |
 
-Use a new `vMAJOR.MINOR.PATCH` tag for each release. The
-[release workflow](.github/workflows/release.yml) runs the same CI on that exact
-tagged commit, then publishes the tested ZIP and `SHA256SUMS` as a GitHub Release
-with generated release notes. Failed tests or invalid versions block publishing.
-The tag supplies the packaged `version-name` (up to 16 characters); source
-metadata is not modified.
+The highest required bump wins when several commits are included. The first
+eligible release is `1.0.0`. Use a Conventional Commit title when squash-merging
+a pull request, since that title becomes the commit analyzed on `master`.
+See the [Conventional Commits specification](https://www.conventionalcommits.org/en/v1.0.0/).
+
+After both CI jobs succeed, the [release workflow](.github/workflows/release.yml)
+checks out the exact tested commit, creates its `vX.Y.Z` tag and GitHub Release,
+and uploads the ZIP and `SHA256SUMS` with generated release notes. It verifies
+the tested artifact before stamping `metadata.json` with the selected
+`version-name` and regenerating the checksum. The packaged JavaScript and CSS
+remain byte-for-byte identical to the tested files; source metadata stays unchanged.
+
+No manual tags or version edits are needed. Pull requests, other branches, and
+manual CI runs only run checks. Commits without a release-worthy change skip
+publication. Release jobs are serialized so concurrent pushes cannot select the
+same version, and a stale tested commit is skipped if `master` has advanced.
 
 Only the publishing job has `contents: write`. GitHub's supplied `GITHUB_TOKEN`
-is sufficient; no personal token or other repository secret is needed. This
-publishes GitHub Releases. Uploads to extensions.gnome.org are not configured.
+is sufficient; no personal token or other repository secret is needed. The
+configuration publishes GitHub Releases without posting issue or pull-request
+comments. Release tooling is development-only and is excluded from the extension
+ZIP. Uploads to npm or extensions.gnome.org are not configured.
 
 ## License
 
